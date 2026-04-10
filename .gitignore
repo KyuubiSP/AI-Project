@@ -1,0 +1,33 @@
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local Python version manager files
+.python-version
+
+# Downloaded datasets and generated model artifacts
+data/
+saved_models/
+*.pth
+*.pt
+
+# macOS
+.DS_Store
+
