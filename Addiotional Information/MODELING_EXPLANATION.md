@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains the modeling notebook for the car-vs-truck classifier. The goal is to train two PyTorch image classification models on a filtered CIFAR-style dataset containing only two classes:
+This document explains the modeling notebook for the car-vs-truck classifier. The goal is to train three PyTorch image classification models on a filtered CIFAR-style dataset containing only two classes:
 
 * `car`
 * `truck`
@@ -34,14 +34,15 @@ Expected format:
 The notebook is written so it can handle images already normalized to `[0, 1]` or still stored in `[0, 255]`. If values are above `1`, it divides them by `255.0`.
 
 
-## Why Two Models Are Used
+## Why Three Models Are Used
 
-The notebook trains two different models for the same task:
+The notebook trains three different models for the same task:
 
 1. a small custom CNN
 2. a pretrained `ResNet18`
+3. a pretrained `Swin-Tiny`
 
-This gives a simple baseline and a stronger transfer-learning model.
+This gives a simple baseline plus two stronger transfer-learning models built from different pretrained backbones.
 
 The custom CNN is useful because:
 
@@ -54,6 +55,12 @@ The `ResNet18` model is useful because:
 * it starts from pretrained image features
 * it usually performs better than a small CNN on limited data
 * it is a standard transfer-learning approach
+
+The `Swin-Tiny` model is useful because:
+
+* it is a transformer-based vision model instead of a CNN
+* it brings a second transfer-learning option with a different architecture
+* it can capture image structure with shifted-window self-attention
 
 
 ## Model 1: Custom CNN Baseline
@@ -120,11 +127,40 @@ The notebook fine-tunes the whole network:
 This means the pretrained features are adapted to the new dataset instead of using the network only as a fixed feature extractor.
 
 
-## Why ResNet18 Needs Extra Preprocessing
+## Model 3: Swin-Tiny Transfer Learning
 
-The baseline CNN can work directly on small CIFAR-like images, but `ResNet18` was originally trained on ImageNet images.
+The third model uses:
 
-For that reason, the notebook prepares the input for `ResNet18` by:
+```python
+torchvision.models.swin_t
+```
+
+with pretrained ImageNet weights.
+
+The classification head is replaced:
+
+```python
+swin_model.head = nn.Linear(swin_model.head.in_features, 2)
+```
+
+This changes the original ImageNet output layer to a binary car-vs-truck classifier.
+
+### Fine-tuning strategy
+
+The notebook fine-tunes the whole `Swin-Tiny` model:
+
+* no layers are frozen
+* all parameters remain trainable
+* Adam updates the full transformer backbone and the new head
+
+This makes the notebook's Swin-Tiny setup parallel to the ResNet18 setup.
+
+
+## Why ResNet18 and Swin-Tiny Need Extra Preprocessing
+
+The baseline CNN can work directly on small CIFAR-like images, but both `ResNet18` and `Swin-Tiny` were originally trained on ImageNet images.
+
+For that reason, the notebook prepares the input for both pretrained models by:
 
 1. resizing images to `224 x 224`
 2. normalizing them with ImageNet mean and standard deviation
@@ -136,12 +172,12 @@ images = F.interpolate(images, size=(224, 224), mode="bilinear", align_corners=F
 images = (images - mean) / std
 ```
 
-This makes the dataset more compatible with the pretrained network.
+This makes the dataset more compatible with the pretrained networks.
 
 
 ## Loss Function
 
-Both models use:
+All models use:
 
 ```python
 nn.CrossEntropyLoss()
@@ -170,12 +206,13 @@ Why Adam:
 * works well as a default optimizer
 * needs little manual tuning for a class project
 
-Different learning rates are used for the two models:
+Different learning rates are used for the three models:
 
 * custom CNN: higher learning rate
 * ResNet18: lower learning rate
+* Swin-Tiny: lower learning rate
 
-This is common because pretrained models are usually fine-tuned more carefully.
+This is common because pretrained models are usually fine-tuned more carefully than a small CNN trained from scratch.
 
 
 ## Training Loop
@@ -233,10 +270,11 @@ predictions = outputs.argmax(dim=1)
 
 ## Saved Outputs
 
-After training, both models are saved as PyTorch state dicts:
+After training, all models are saved as PyTorch state dicts:
 
 * `saved_models/simple_cnn_car_truck.pth`
 * `saved_models/resnet18_car_truck.pth`
+* `saved_models/swin_tiny_car_truck.pth`
 
 The notebook also includes example loading code so teammates can reload the weights later for testing or evaluation.
 
@@ -263,8 +301,9 @@ The modeling notebook does the following:
 2. creates dataloaders
 3. trains a simple CNN baseline
 4. trains a fine-tuned pretrained `ResNet18`
-5. logs loss and accuracy for both models
-6. plots training progress
-7. saves both trained models for later evaluation
+5. trains a fine-tuned pretrained `Swin-Tiny`
+6. logs loss and accuracy for all models
+7. plots training progress
+8. saves all trained models for later evaluation
 
-In short, the notebook gives one from-scratch baseline and one transfer-learning model for binary image classification on the car-vs-truck subset.
+In short, the notebook gives one from-scratch baseline plus two transfer-learning models for binary image classification on the car-vs-truck subset.
