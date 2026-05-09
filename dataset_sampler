@@ -1,0 +1,93 @@
+import pickle
+import numpy as np
+import os
+import zipfile
+import tempfile
+
+def load_cifar10_cars_trucks(data_dir, sample_fraction=0.5):
+    """
+    Load the CIFAR-10 dataset from the given directory, filter to only car and truck images, and sample a fraction uniformly.
+
+    Args:
+        data_dir (str): Path to the directory containing CIFAR-10 batch files.
+        sample_fraction (float): Fraction of the filtered data to keep (default 0.5 for 50%).
+
+    Returns:
+        dict: Dictionary containing sampled 'train_data', 'train_labels', 'test_data', 'test_labels' for cars and trucks only.
+    """
+    # Load training data
+    train_data = []
+    train_labels = []
+    for i in range(1, 6):
+        file_path = os.path.join(data_dir, f'data_batch_{i}')
+        with open(file_path, 'rb') as f:
+            batch = pickle.load(f, encoding='bytes')
+        train_data.append(batch[b'data'])
+        train_labels.extend(batch[b'labels'])
+    
+    train_data = np.concatenate(train_data, axis=0)
+    train_labels = np.array(train_labels)
+    
+    # Load test data
+    test_file_path = os.path.join(data_dir, 'test_batch')
+    with open(test_file_path, 'rb') as f:
+        test_batch = pickle.load(f, encoding='bytes')
+    test_data = test_batch[b'data']
+    test_labels = np.array(test_batch[b'labels'])
+    
+    # Filter for cars (class 1) and trucks (class 9)
+    car_truck_mask_train = (train_labels == 1) | (train_labels == 9)
+    train_data_filtered = train_data[car_truck_mask_train]
+    train_labels_filtered = train_labels[car_truck_mask_train]
+    
+    car_truck_mask_test = (test_labels == 1) | (test_labels == 9)
+    test_data_filtered = test_data[car_truck_mask_test]
+    test_labels_filtered = test_labels[car_truck_mask_test]
+    
+    # Sample the filtered data
+    n_train = len(train_labels_filtered)
+    indices = np.random.permutation(n_train)
+    sampled_indices = indices[:int(n_train * sample_fraction)]
+    train_data_sampled = train_data_filtered[sampled_indices]
+    train_labels_sampled = train_labels_filtered[sampled_indices]
+    
+    n_test = len(test_labels_filtered)
+    indices_test = np.random.permutation(n_test)
+    sampled_indices_test = indices_test[:int(n_test * sample_fraction)]
+    test_data_sampled = test_data_filtered[sampled_indices_test]
+    test_labels_sampled = test_labels_filtered[sampled_indices_test]
+    
+    return {
+        'train_data': train_data_sampled,
+        'train_labels': train_labels_sampled,
+        'test_data': test_data_sampled,
+        'test_labels': test_labels_sampled
+    }
+
+def save_dataset_to_zip(dataset, zip_path):
+    """
+    Save the dataset dictionary to a zip file containing numpy arrays.
+
+    Args:
+        dataset (dict): The dataset dictionary.
+        zip_path (str): Path to the output zip file.
+    """
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Save each array as .npy in the zip
+        for key, value in dataset.items():
+            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                np.save(tmp.name, value)
+                zf.write(tmp.name, f'{key}.npy')
+                os.unlink(tmp.name)
+
+# Example usage
+if __name__ == "__main__":
+    data_dir = '/Users/arturschneider/Documents/GitHub/AI Project/cifar-10-batches-dataset'
+    sampled_dataset = load_cifar10_cars_trucks(data_dir, sample_fraction=0.5)
+    zip_path = '/Users/arturschneider/Documents/GitHub/AI Project/sampled_cars_trucks.zip'
+    save_dataset_to_zip(sampled_dataset, zip_path)
+    print(f"Sampled dataset saved to {zip_path}")
+    print("Contents:")
+    with zipfile.ZipFile(zip_path, 'r') as zf:
+        for name in zf.namelist():
+            print(f"  {name}")
